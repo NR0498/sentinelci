@@ -37,6 +37,7 @@ jobs:
             image-ref: 'sentinelci'
             format: 'table'
             output: 'trivy-report.txt'
+            vuln-type: library
 
     - name: Scan Docker Image
       run: trivy image sentinelci > trivy-report.txt
