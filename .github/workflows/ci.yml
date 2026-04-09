@@ -31,10 +31,12 @@ jobs:
     - name: Build Docker Image
       run: docker build -t sentinelci .
 
-    - name: Install Trivy
-      run: |
-        wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.0_Linux-64bit.deb
-        sudo dpkg -i trivy_0.50.0_Linux-64bit.deb
+    - name: Run Trivy Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+            image-ref: 'sentinelci'
+            format: 'table'
+            output: 'trivy-report.txt'
 
     - name: Scan Docker Image
       run: trivy image sentinelci > trivy-report.txt
