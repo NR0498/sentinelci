@@ -1,0 +1,53 @@
+name: SentinelCI Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-test-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install Dependencies
+      run: pip install -r app/requirements.txt pip-audit
+
+    - name: Run Tests
+      run: |
+        cd app
+        pytest
+
+    - name: Dependency Scan
+      run: pip-audit
+
+    - name: Build Docker Image
+      run: docker build -t sentinelci .
+
+    - name: Install Trivy
+      run: |
+        wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.0_Linux-64bit.deb
+        sudo dpkg -i trivy_0.50.0_Linux-64bit.deb
+
+    - name: Scan Docker Image
+      run: trivy image sentinelci > trivy-report.txt
+
+    - name: Generate Security Report
+      run: python report.py
+
+    - name: Show Report
+      run: cat final-report.txt
+
+    - name: Fail if Vulnerable
+      run: |
+        if grep -E "HIGH|CRITICAL" trivy-report.txt; then
+          echo "❌ Vulnerabilities found!"
+          exit 1
+        fi
