@@ -39,7 +39,7 @@ jobs:
             output: 'trivy-report.txt'
             vuln-type: library
             severity: HIGH,CRITICAL
-                ignore-unfixed: true
+            ignore-unfixed: true
 
     - name: Scan Docker Image
       run: trivy image sentinelci > trivy-report.txt
