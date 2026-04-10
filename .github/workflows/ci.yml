@@ -2,52 +2,93 @@ name: SentinelCI Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-test-scan:
     runs-on: ubuntu-latest
 
     steps:
+    # -------------------------------
+    # 1. CHECKOUT CODE
+    # -------------------------------
     - name: Checkout Code
       uses: actions/checkout@v3
 
+    # -------------------------------
+    # 2. SETUP PYTHON
+    # -------------------------------
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
 
+    # -------------------------------
+    # 3. INSTALL DEPENDENCIES
+    # -------------------------------
     - name: Install Dependencies
-      run: pip install -r app/requirements.txt pip-audit
+      run: |
+        pip install --upgrade pip
+        pip install --upgrade -r app/requirements.txt
+        pip install pip-audit pytest pytest-cov flake8
 
-    - name: Run Tests
+    # -------------------------------
+    # 4. LINTING (CODE QUALITY)
+    # -------------------------------
+    - name: Lint Code
+      run: |
+        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    # -------------------------------
+    # 5. RUN TESTS WITH COVERAGE
+    # -------------------------------
+    - name: Run Tests with Coverage
       run: |
         cd app
-        pytest
+        pytest --cov=. --cov-report=term-missing
 
+    # -------------------------------
+    # 6. DEPENDENCY SECURITY SCAN
+    # -------------------------------
     - name: Dependency Scan
       run: pip-audit
 
+    # -------------------------------
+    # 7. BUILD DOCKER IMAGE
+    # -------------------------------
     - name: Build Docker Image
       run: docker build -t sentinelci .
 
+    # -------------------------------
+    # 8. CONTAINER SECURITY SCAN
+    # -------------------------------
     - name: Run Trivy Scan
       uses: aquasecurity/trivy-action@master
       with:
-            image-ref: 'sentinelci'
-            format: 'table'
-            output: 'trivy-report.txt'
-            vuln-type: library
-            severity: HIGH,CRITICAL
-            ignore-unfixed: true
+        image-ref: sentinelci
+        format: table
+        output: trivy-report.txt
+        vuln-type: library
+        severity: HIGH,CRITICAL
+        ignore-unfixed: true
 
-    - name: Scan Docker Image
-      run: trivy image sentinelci > trivy-report.txt
-
+    # -------------------------------
+    # 9. GENERATE SECURITY REPORT
+    # -------------------------------
     - name: Generate Security Report
       run: python report.py
 
+    # -------------------------------
+    # 10. SHOW REPORT
+    # -------------------------------
     - name: Show Report
       run: cat final-report.txt
 
-    
+    # -------------------------------
+    # 11. UPLOAD REPORT AS ARTIFACT
+    # -------------------------------
+    - name: Upload Security Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: final-report.txt
