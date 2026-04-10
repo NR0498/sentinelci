@@ -6,61 +6,56 @@ def generate_report():
         print("❌ trivy-report.txt not found")
         return
 
-    # Count vulnerabilities
+    # Count only HIGH and CRITICAL (same as pipeline)
     high = data.count("HIGH")
     critical = data.count("CRITICAL")
+
+    # Ignore medium/low for scoring (pipeline logic alignment)
     medium = data.count("MEDIUM")
     low = data.count("LOW")
 
-    # Security score calculation
-    score = 100 - (critical * 10 + high * 5 + medium * 2)
+    # Security score based ONLY on high/critical
+    score = 100 - (critical * 10 + high * 5)
     score = max(score, 0)
 
-    # Determine status
+    # Determine status (same as pipeline)
     status = "PASS"
     if critical > 0 or high > 0:
         status = "FAIL"
 
     # Failure reason
     if critical > 0:
-        reason = "Critical vulnerabilities detected which pose severe security risks."
+        reason = "Critical vulnerabilities detected in application dependencies."
     elif high > 0:
-        reason = "High severity vulnerabilities detected that must be resolved."
-    elif medium > 0:
-        reason = "Medium severity vulnerabilities present, recommended to fix."
+        reason = "High severity vulnerabilities detected in dependencies."
     else:
-        reason = "No significant vulnerabilities detected."
+        reason = "No high or critical vulnerabilities detected."
 
     # Suggestions
     suggestions = []
 
     if critical > 0:
-        suggestions.append("- Immediately update or remove packages with critical vulnerabilities.")
-        suggestions.append("- Avoid deploying this build until issues are resolved.")
+        suggestions.append("- Immediately update or remove critical vulnerabilities.")
+        suggestions.append("- Do NOT deploy until resolved.")
 
     if high > 0:
-        suggestions.append("- Upgrade affected dependencies to secure versions.")
-        suggestions.append("- Review changelogs for patched releases.")
-
-    if medium > 0:
-        suggestions.append("- Consider updating dependencies to reduce risk.")
-
-    if low > 0:
-        suggestions.append("- Low severity issues can be monitored and fixed in future updates.")
+        suggestions.append("- Upgrade dependencies to patched versions.")
+        suggestions.append("- Review security advisories.")
 
     if not suggestions:
-        suggestions.append("- No action needed. System is secure.")
+        suggestions.append("- System is secure. No action required.")
 
-    # Format suggestions nicely
     suggestions_text = "\n".join(suggestions)
 
     # Final report
     report = f"""
 ================ SENTINELCI SECURITY REPORT ================
 
-VULNERABILITY SUMMARY:
+VULNERABILITY SUMMARY (Filtered):
 CRITICAL : {critical}
 HIGH     : {high}
+
+(Info Only)
 MEDIUM   : {medium}
 LOW      : {low}
 
@@ -77,12 +72,10 @@ RECOMMENDATIONS:
 ============================================================
 """
 
-    # Save report
     with open("final-report.txt", "w") as f:
         f.write(report)
 
     print(report)
 
 
-# Run function
 generate_report()
