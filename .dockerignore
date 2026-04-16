@@ -2,3 +2,9 @@ __pycache__
 *.pyc
 .git
 venv
+.venv
+.pytest_cache
+coverage.xml
+final-report.txt
+trivy-report.json
+pip-audit-report.json

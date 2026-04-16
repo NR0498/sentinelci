@@ -1,13 +1,24 @@
-FROM python:3.11.9-slim
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+ARG REQUIREMENTS_FILE=requirements.txt
 
 WORKDIR /app
 
-COPY app/requirements.txt .
+COPY app/ /app/
 
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --upgrade pip setuptools wheel
+RUN cp "/app/${REQUIREMENTS_FILE}" /tmp/requirements.txt && \
+    python -m pip install --upgrade pip setuptools wheel && \
+    python -m pip install -r /tmp/requirements.txt
 
-COPY app/ .
+RUN useradd --create-home appuser
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

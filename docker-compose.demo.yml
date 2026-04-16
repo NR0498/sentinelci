@@ -1,0 +1,28 @@
+services:
+  app:
+    image: sentinelci-app:latest
+    container_name: sentinelci-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements.txt
+    networks:
+      - sentinelci-network
+
+  proxy:
+    image: sentinelci-proxy:latest
+    container_name: sentinelci-proxy
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    depends_on:
+      - app
+    ports:
+      - "8080:80"
+    networks:
+      - sentinelci-network
+
+networks:
+  sentinelci-network:
+    name: sentinelci-network

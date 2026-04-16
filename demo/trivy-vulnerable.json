@@ -1,0 +1,22 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "sentinelci:v2",
+  "ArtifactType": "container_image",
+  "Results": [
+    {
+      "Target": "Python dependencies",
+      "Class": "lang-pkgs",
+      "Type": "pip",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2021-33503",
+          "PkgName": "urllib3",
+          "InstalledVersion": "1.26.4",
+          "FixedVersion": "1.26.5",
+          "Severity": "HIGH",
+          "Title": "urllib3 catastrophic backtracking denial of service"
+        }
+      ]
+    }
+  ]
+}

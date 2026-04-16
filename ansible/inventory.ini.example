@@ -1,0 +1,3 @@
+[app_hosts]
+# Replace this host with your real Linux Docker host.
+demo-target ansible_host=127.0.0.1 ansible_user=ubuntu

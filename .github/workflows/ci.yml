@@ -1,54 +1,168 @@
-name: SentinelCI Pipeline
+name: SentinelCI Demo Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      dependency_profile:
+        description: "Choose SAFE for a passing run or VULNERABLE for a failing demo."
+        required: true
+        default: safe
+        type: choice
+        options:
+          - safe
+          - vulnerable
+      image_tag:
+        description: "Docker image tag for demo screenshots."
+        required: true
+        default: v1
+        type: string
+      auto_deploy:
+        description: "Run the multi-container demo deployment stage."
+        required: true
+        default: true
+        type: boolean
+
+env:
+  APP_IMAGE_NAME: sentinelci-app
+  PROXY_IMAGE_NAME: sentinelci-proxy
+  DEPENDENCY_PROFILE: ${{ inputs.dependency_profile || 'safe' }}
+  IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
+  AUTO_DEPLOY: ${{ inputs.auto_deploy != false }}
 
 jobs:
-  build-test-scan:
+  devsecops-demo:
+    name: DevSecOps Demo
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v3
+      - name: Stage 1 - Checkout Source
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Stage 2 - Select Dependency Profile
+        shell: bash
+        run: |
+          if [[ "${DEPENDENCY_PROFILE}" == "vulnerable" ]]; then
+            echo "REQUIREMENTS_FILE=app/requirements-vulnerable.txt" >> "$GITHUB_ENV"
+            echo "REPORT_LABEL=DEMO FAILURE" >> "$GITHUB_ENV"
+          else
+            echo "REQUIREMENTS_FILE=app/requirements.txt" >> "$GITHUB_ENV"
+            echo "REPORT_LABEL=DEMO SUCCESS" >> "$GITHUB_ENV"
+          fi
+          echo "Selected profile: ${DEPENDENCY_PROFILE}"
+          echo "Image tags: ${IMAGE_TAG}, latest"
 
-    - name: Install Dependencies
-      run: pip install -r app/requirements.txt pip-audit
+      - name: Stage 3 - Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            app/requirements.txt
+            app/requirements-vulnerable.txt
 
-    - name: Run Tests
-      run: |
-        cd app
-        pytest
+      - name: Stage 4 - Install Dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r "${REQUIREMENTS_FILE}" pip-audit
 
-    - name: Dependency Scan
-      run: pip-audit
+      - name: Stage 5 - Lint Application
+        run: flake8 --jobs=1 app report.py
 
-    - name: Build Docker Image
-      run: docker build -t sentinelci .
+      - name: Stage 6 - Run Test Suite With Coverage
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml app
 
-    - name: Run Trivy Scan
-      uses: aquasecurity/trivy-action@master
-      with:
-            image-ref: 'sentinelci'
-            format: 'table'
-            output: 'trivy-report.txt'
-            vuln-type: library
-            severity: HIGH,CRITICAL
-            ignore-unfixed: true
-    - name: Show Trivy Report
-      run: cat trivy-report.txt
-    - name: Scan Docker Image
-      run: trivy image sentinelci > trivy-report.txt
+      - name: Stage 7 - Audit Python Dependencies
+        run: |
+          pip-audit -r "${REQUIREMENTS_FILE}" --format json --output pip-audit-report.json || true
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("pip-audit-report.json").read_text())
+          findings = [
+              (dep["name"], dep["version"], vuln["id"])
+              for dep in report.get("dependencies", [])
+              for vuln in dep.get("vulns", [])
+          ]
+          if findings:
+              print("Dependency audit findings:")
+              for name, version, vuln_id in findings[:10]:
+                  print(f"- {name} {version}: {vuln_id}")
+          else:
+              print("Dependency audit passed with no known vulnerabilities.")
+          PY
 
-    - name: Generate Security Report
-      run: python report.py
+      - name: Stage 8 - Build Application Image
+        run: |
+          docker build \
+            --build-arg REQUIREMENTS_FILE="$(basename "${REQUIREMENTS_FILE}")" \
+            -t "${APP_IMAGE_NAME}:${IMAGE_TAG}" \
+            -t "${APP_IMAGE_NAME}:latest" \
+            .
 
-    - name: Show Report
-      run: cat final-report.txt
+      - name: Stage 9 - Build Proxy Image
+        run: |
+          docker build \
+            -f Dockerfile.proxy \
+            -t "${PROXY_IMAGE_NAME}:${IMAGE_TAG}" \
+            -t "${PROXY_IMAGE_NAME}:latest" \
+            .
+          docker image ls | grep sentinelci
 
-    
+      - name: Stage 10 - Trivy Scan App Image (Table)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ${{ env.APP_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: table
+          output: trivy-report.txt
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Stage 11 - Trivy Scan App Image (JSON)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ${{ env.APP_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: json
+          output: trivy-report.json
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Stage 12 - Display Trivy Findings
+        shell: bash
+        run: |
+          echo "===== Trivy Table Report ====="
+          cat trivy-report.txt
+
+      - name: Stage 13 - Generate SentinelCI Security Report
+        run: |
+          python report.py \
+            --input trivy-report.json \
+            --output final-report.txt \
+            --label "${REPORT_LABEL}" \
+            --fail-on-vulns
+
+      - name: Stage 14 - Auto Deploy Demo Stack
+        if: ${{ success() && env.DEPENDENCY_PROFILE == 'safe' && env.AUTO_DEPLOY == 'true' }}
+        run: |
+          docker compose -f docker-compose.demo.yml up -d
+          docker compose -f docker-compose.demo.yml ps
+
+      - name: Stage 15 - Upload Demo Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinelci-${{ env.DEPENDENCY_PROFILE }}-${{ env.IMAGE_TAG }}-reports
+          if-no-files-found: ignore
+          path: |
+            final-report.txt
+            trivy-report.txt
+            trivy-report.json
+            pip-audit-report.json
+            coverage.xml

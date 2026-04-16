@@ -1,0 +1,13 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "sentinelci:v1",
+  "ArtifactType": "container_image",
+  "Results": [
+    {
+      "Target": "Python dependencies",
+      "Class": "lang-pkgs",
+      "Type": "pip",
+      "Vulnerabilities": []
+    }
+  ]
+}
