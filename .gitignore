@@ -6,6 +6,8 @@ __pycache__/
 .coverage
 coverage.xml
 final-report.txt
+final-report-pass.txt
+final-report-fail.txt
 trivy-report.json
 trivy-report.txt
 pip-audit-report.json
@@ -13,4 +15,8 @@ demo-safe-report.txt
 demo-failure-report.txt
 terraform/.terraform/
 terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
 tools/jenkins/home/
+.vercel/
+.tools/

@@ -26,12 +26,12 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+
 env:
   APP_IMAGE_NAME: sentinelci-app
   PROXY_IMAGE_NAME: sentinelci-proxy
-  DEPENDENCY_PROFILE: ${{ inputs.dependency_profile || 'safe' }}
-  IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
-  AUTO_DEPLOY: ${{ inputs.auto_deploy != false }}
 
 jobs:
   devsecops-demo:
@@ -42,18 +42,34 @@ jobs:
       - name: Stage 1 - Checkout Source
         uses: actions/checkout@v4
 
-      - name: Stage 2 - Select Dependency Profile
+      - name: Stage 2 - Select Demo Profile And Tags
         shell: bash
         run: |
-          if [[ "${DEPENDENCY_PROFILE}" == "vulnerable" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PROFILE="${{ github.event.inputs.dependency_profile }}"
+            IMAGE_TAG_INPUT="${{ github.event.inputs.image_tag }}"
+            AUTO_DEPLOY_INPUT="${{ github.event.inputs.auto_deploy }}"
+          else
+            PROFILE="safe"
+            IMAGE_TAG_INPUT="v1"
+            AUTO_DEPLOY_INPUT="false"
+          fi
+
+          if [[ "${PROFILE}" == "vulnerable" ]]; then
             echo "REQUIREMENTS_FILE=app/requirements-vulnerable.txt" >> "$GITHUB_ENV"
             echo "REPORT_LABEL=DEMO FAILURE" >> "$GITHUB_ENV"
           else
             echo "REQUIREMENTS_FILE=app/requirements.txt" >> "$GITHUB_ENV"
             echo "REPORT_LABEL=DEMO SUCCESS" >> "$GITHUB_ENV"
           fi
-          echo "Selected profile: ${DEPENDENCY_PROFILE}"
-          echo "Image tags: ${IMAGE_TAG}, latest"
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "DEPENDENCY_PROFILE=${PROFILE}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${IMAGE_TAG_INPUT}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "AUTO_DEPLOY=${AUTO_DEPLOY_INPUT}" >> "$GITHUB_ENV"
+          echo "Selected profile: ${PROFILE}"
+          echo "Image tags: ${IMAGE_TAG_INPUT}, latest, sha-${SHORT_SHA}"
 
       - name: Stage 3 - Set Up Python
         uses: actions/setup-python@v5
@@ -70,17 +86,18 @@ jobs:
           python -m pip install -r "${REQUIREMENTS_FILE}" pip-audit
 
       - name: Stage 5 - Lint Application
-        run: flake8 --jobs=1 app report.py
+        run: python -m flake8 --jobs=1 app report.py scripts/verify_localstack.py
 
       - name: Stage 6 - Run Test Suite With Coverage
-        run: pytest --cov=app --cov-report=term-missing --cov-report=xml app
+        run: python -m pytest --cov=app --cov-report=term-missing --cov-report=xml app
 
       - name: Stage 7 - Audit Python Dependencies
         run: |
-          pip-audit -r "${REQUIREMENTS_FILE}" --format json --output pip-audit-report.json || true
+          python -m pip_audit -r "${REQUIREMENTS_FILE}" --format json --output pip-audit-report.json || true
           python - <<'PY'
           import json
           from pathlib import Path
+
           report = json.loads(Path("pip-audit-report.json").read_text())
           findings = [
               (dep["name"], dep["version"], vuln["id"])
@@ -101,6 +118,7 @@ jobs:
             --build-arg REQUIREMENTS_FILE="$(basename "${REQUIREMENTS_FILE}")" \
             -t "${APP_IMAGE_NAME}:${IMAGE_TAG}" \
             -t "${APP_IMAGE_NAME}:latest" \
+            -t "${APP_IMAGE_NAME}:sha-${SHORT_SHA}" \
             .
 
       - name: Stage 9 - Build Proxy Image
@@ -109,6 +127,7 @@ jobs:
             -f Dockerfile.proxy \
             -t "${PROXY_IMAGE_NAME}:${IMAGE_TAG}" \
             -t "${PROXY_IMAGE_NAME}:latest" \
+            -t "${PROXY_IMAGE_NAME}:sha-${SHORT_SHA}" \
             .
           docker image ls | grep sentinelci
 
@@ -153,6 +172,7 @@ jobs:
         run: |
           docker compose -f docker-compose.demo.yml up -d
           docker compose -f docker-compose.demo.yml ps
+          python scripts/verify_localstack.py
 
       - name: Stage 15 - Upload Demo Artifacts
         if: always()

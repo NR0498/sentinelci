@@ -1,7 +1,8 @@
 param(
     [string]$Inventory = "ansible/inventory.ini.example",
     [string]$Playbook = "ansible/deploy.yml",
-    [string[]]$ExtraArgs
+    [string[]]$ExtraArgs,
+    [switch]$SyntaxCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,13 +28,20 @@ $dockerArgs = @(
     "-v", "${repoRoot}:/workspace",
     "-w", "/workspace",
     $imageName,
-    "ansible-playbook",
-    "-i", $Inventory,
-    $Playbook
+    "ansible-playbook"
 )
+
+if ($SyntaxCheck) {
+    $dockerArgs += "--syntax-check"
+}
 
 if ($ExtraArgs) {
     $dockerArgs += $ExtraArgs
 }
+
+$dockerArgs += @(
+    "-i", $Inventory,
+    $Playbook
+)
 
 & docker @dockerArgs

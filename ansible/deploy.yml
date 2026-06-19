@@ -44,6 +44,16 @@
         name: "{{ sentinelci_proxy_image }}"
         source: pull
 
+    - name: Stop old SentinelCI proxy container if running
+      community.docker.docker_container:
+        name: "{{ sentinelci_proxy_container }}"
+        state: absent
+
+    - name: Stop old SentinelCI API container if running
+      community.docker.docker_container:
+        name: "{{ sentinelci_app_container }}"
+        state: absent
+
     - name: Run SentinelCI API container
       community.docker.docker_container:
         name: "{{ sentinelci_app_container }}"
@@ -53,8 +63,8 @@
         recreate: true
         networks:
           - name: "{{ sentinelci_network }}"
-        exposed_ports:
-          - "{{ sentinelci_app_port }}"
+        published_ports:
+          - "{{ sentinelci_app_port }}:8000"
 
     - name: Run SentinelCI proxy container
       community.docker.docker_container:
@@ -67,3 +77,21 @@
           - name: "{{ sentinelci_network }}"
         published_ports:
           - "{{ sentinelci_proxy_port }}:80"
+
+    - name: Collect SentinelCI API container status
+      community.docker.docker_container_info:
+        name: "{{ sentinelci_app_container }}"
+      register: sentinelci_app_info
+
+    - name: Collect SentinelCI proxy container status
+      community.docker.docker_container_info:
+        name: "{{ sentinelci_proxy_container }}"
+      register: sentinelci_proxy_info
+
+    - name: Show deployed container status
+      ansible.builtin.debug:
+        msg:
+          - "App running: {{ sentinelci_app_info.container.State.Status }}"
+          - "Proxy running: {{ sentinelci_proxy_info.container.State.Status }}"
+          - "App image: {{ sentinelci_app_info.container.Config.Image }}"
+          - "Proxy image: {{ sentinelci_proxy_info.container.Config.Image }}"

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="SentinelCI DevSecOps dashboard with LocalStack S3 and SNS proof."
+    />
+    <title>SentinelCI Control Room</title>
+    <link rel="stylesheet" href="/dashboard-assets/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">S</div>
+          <div>
+            <strong>SentinelCI</strong>
+            <span>Control room</span>
+          </div>
+        </div>
+        <nav aria-label="Dashboard navigation">
+          <a class="active" href="#overview">Overview</a>
+          <a href="#pipeline">Pipeline</a>
+          <a href="#artifacts">Artifacts</a>
+          <a href="#events">Events</a>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="pulse"></span>
+          Local-first AWS proof
+        </div>
+      </aside>
+
+      <main>
+        <header>
+          <div>
+            <p class="eyebrow">DevSecOps observability</p>
+            <h1>Deployment confidence, at a glance.</h1>
+            <p class="subtitle">
+              Live proof across tests, security gates, S3 artifacts, and SNS
+              delivery—without an AWS account.
+            </p>
+          </div>
+          <div class="header-actions">
+            <label class="api-field">
+              <span>API endpoint</span>
+              <input id="api-base" value="" placeholder="Same origin" />
+            </label>
+            <button id="refresh-button" class="secondary">Refresh</button>
+          </div>
+        </header>
+
+        <section id="overview" class="status-strip">
+          <article>
+            <div class="metric-head">
+              <span>Security score</span><span class="status good">PASS</span>
+            </div>
+            <strong>100</strong><small>/100</small>
+            <div class="bar"><i style="width: 100%"></i></div>
+          </article>
+          <article>
+            <div class="metric-head">
+              <span>Test coverage</span><span class="trend">+ stable</span>
+            </div>
+            <strong>100%</strong>
+            <p>7 API checks passing</p>
+          </article>
+          <article>
+            <div class="metric-head">
+              <span>LocalStack</span><span id="aws-badge" class="status idle">Checking</span>
+            </div>
+            <strong id="aws-state">—</strong>
+            <p id="aws-detail">Connecting to local AWS services</p>
+          </article>
+          <article>
+            <div class="metric-head">
+              <span>Last delivery</span><span class="status info">SNS</span>
+            </div>
+            <strong id="delivery-count">0</strong>
+            <p>notifications observed</p>
+          </article>
+        </section>
+
+        <section class="grid">
+          <article id="pipeline" class="panel pipeline-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Pipeline</p>
+                <h2>Release path</h2>
+              </div>
+              <span class="status good">Healthy</span>
+            </div>
+            <div class="pipeline">
+              <div class="stage complete">
+                <span>01</span><div><strong>Source</strong><small>Git checkout</small></div>
+              </div>
+              <div class="stage complete">
+                <span>02</span><div><strong>Quality</strong><small>Lint + pytest</small></div>
+              </div>
+              <div class="stage complete">
+                <span>03</span><div><strong>Security</strong><small>Audit + Trivy</small></div>
+              </div>
+              <div class="stage complete">
+                <span>04</span><div><strong>Package</strong><small>Docker images</small></div>
+              </div>
+              <div class="stage active">
+                <span>05</span><div><strong>Evidence</strong><small>S3 + SNS</small></div>
+              </div>
+            </div>
+            <div class="scan-summary">
+              <div>
+                <span>Critical</span><strong>0</strong>
+              </div>
+              <div>
+                <span>High</span><strong>0</strong>
+              </div>
+              <div>
+                <span>Medium</span><strong>0</strong>
+              </div>
+              <div>
+                <span>Low</span><strong>0</strong>
+              </div>
+            </div>
+          </article>
+
+          <article id="artifacts" class="panel upload-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">AWS integration</p>
+                <h2>Publish evidence</h2>
+              </div>
+              <span class="aws-chip">S3 → SNS</span>
+            </div>
+            <form id="upload-form">
+              <label id="drop-zone" class="drop-zone">
+                <input id="artifact-file" type="file" required />
+                <span class="upload-icon">↑</span>
+                <strong>Choose a proof artifact</strong>
+                <small>Report, screenshot, JSON, or text file</small>
+              </label>
+              <button id="upload-button" type="submit">Upload and notify</button>
+            </form>
+            <div id="upload-result" class="result" aria-live="polite">
+              Ready for a live LocalStack upload.
+            </div>
+          </article>
+
+          <article class="panel artifacts-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Object storage</p>
+                <h2>Recent artifacts</h2>
+              </div>
+              <button id="artifact-refresh" class="text-button">Reload</button>
+            </div>
+            <div id="artifact-list" class="list">
+              <div class="empty">No local artifacts loaded yet.</div>
+            </div>
+          </article>
+
+          <article id="events" class="panel events-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Event delivery</p>
+                <h2>SNS notifications</h2>
+              </div>
+              <button id="event-refresh" class="text-button">Poll queue</button>
+            </div>
+            <div id="event-list" class="list">
+              <div class="empty">No notification events loaded yet.</div>
+            </div>
+          </article>
+        </section>
+        <footer>
+          <span>SentinelCI · evidence-driven delivery</span>
+          <span id="updated-at">Not refreshed</span>
+        </footer>
+      </main>
+    </div>
+    <script src="/dashboard-assets/app.js"></script>
+  </body>
+</html>
