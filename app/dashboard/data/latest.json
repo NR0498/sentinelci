@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-19T17:03:36.476540+00:00",
+  "project": {
+    "name": "SentinelCI",
+    "repository": "NR0498/sentinelci",
+    "description": "DevSecOps evidence platform for automated security, quality, artifact, and notification workflows."
+  },
+  "run": {
+    "id": "local",
+    "number": "45",
+    "attempt": "1",
+    "event": "local",
+    "branch": "codex/localstack-dashboard-proof",
+    "commit": "5fe4da1",
+    "actor": "NR0498",
+    "url": "",
+    "status": "failed"
+  },
+  "quality": {
+    "coverage_percent": 73.3,
+    "tests_status": "passed",
+    "lint_status": "passed"
+  },
+  "security": {
+    "status": "failed",
+    "score": 90,
+    "counts": {
+      "critical": 0,
+      "high": 1,
+      "medium": 0,
+      "low": 0
+    },
+    "total_findings": 1,
+    "findings": [
+      {
+        "source": "Trivy",
+        "id": "CVE-2021-33503",
+        "package": "urllib3",
+        "installed_version": "1.26.4",
+        "fixed_version": "1.26.5",
+        "severity": "high",
+        "title": "urllib3 catastrophic backtracking denial of service",
+        "url": "",
+        "action": "Upgrade urllib3 to 1.26.5 or later."
+      }
+    ],
+    "gate": {
+      "passed": false,
+      "policy": "Block on any critical or high vulnerability."
+    }
+  },
+  "delivery": {
+    "image_tag": "vulnerable-demo",
+    "artifact_name": "sentinelci-pipeline-evidence",
+    "discord_configured": false
+  }
+}

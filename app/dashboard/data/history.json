@@ -1,0 +1,47 @@
+[
+  {
+    "run": 41,
+    "date": "2026-06-12",
+    "status": "passed",
+    "score": 100,
+    "coverage": 68,
+    "critical": 0,
+    "high": 0
+  },
+  {
+    "run": 42,
+    "date": "2026-06-14",
+    "status": "failed",
+    "score": 80,
+    "coverage": 70,
+    "critical": 1,
+    "high": 0
+  },
+  {
+    "run": 43,
+    "date": "2026-06-16",
+    "status": "failed",
+    "score": 90,
+    "coverage": 71,
+    "critical": 0,
+    "high": 1
+  },
+  {
+    "run": 44,
+    "date": "2026-06-18",
+    "status": "passed",
+    "score": 100,
+    "coverage": 73,
+    "critical": 0,
+    "high": 0
+  },
+  {
+    "run": 45,
+    "date": "2026-06-19",
+    "status": "failed",
+    "score": 90,
+    "coverage": 73,
+    "critical": 0,
+    "high": 1
+  }
+]

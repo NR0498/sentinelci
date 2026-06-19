@@ -26,12 +26,13 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+  security-events: write
+
 env:
   APP_IMAGE_NAME: sentinelci-app
   PROXY_IMAGE_NAME: sentinelci-proxy
-  DEPENDENCY_PROFILE: ${{ inputs.dependency_profile || 'safe' }}
-  IMAGE_TAG: ${{ inputs.image_tag || 'latest' }}
-  AUTO_DEPLOY: ${{ inputs.auto_deploy != false }}
 
 jobs:
   devsecops-demo:
@@ -40,29 +41,41 @@ jobs:
 
     steps:
       - name: Stage 1 - Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Stage 2 - Select Dependency Profile
+      - name: Stage 2 - Select Demo Profile And Tags
         shell: bash
         run: |
-          if [[ "${DEPENDENCY_PROFILE}" == "vulnerable" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PROFILE="${{ github.event.inputs.dependency_profile }}"
+            IMAGE_TAG_INPUT="${{ github.event.inputs.image_tag }}"
+            AUTO_DEPLOY_INPUT="${{ github.event.inputs.auto_deploy }}"
+          else
+            PROFILE="safe"
+            IMAGE_TAG_INPUT="v1"
+            AUTO_DEPLOY_INPUT="false"
+          fi
+
+          if [[ "${PROFILE}" == "vulnerable" ]]; then
             echo "REQUIREMENTS_FILE=app/requirements-vulnerable.txt" >> "$GITHUB_ENV"
             echo "REPORT_LABEL=DEMO FAILURE" >> "$GITHUB_ENV"
           else
             echo "REQUIREMENTS_FILE=app/requirements.txt" >> "$GITHUB_ENV"
             echo "REPORT_LABEL=DEMO SUCCESS" >> "$GITHUB_ENV"
           fi
-          echo "Selected profile: ${DEPENDENCY_PROFILE}"
-          echo "Image tags: ${IMAGE_TAG}, latest"
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "DEPENDENCY_PROFILE=${PROFILE}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${IMAGE_TAG_INPUT}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "AUTO_DEPLOY=${AUTO_DEPLOY_INPUT}" >> "$GITHUB_ENV"
+          echo "Selected profile: ${PROFILE}"
+          echo "Image tags: ${IMAGE_TAG_INPUT}, latest, sha-${SHORT_SHA}"
 
       - name: Stage 3 - Set Up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: |
-            app/requirements.txt
-            app/requirements-vulnerable.txt
 
       - name: Stage 4 - Install Dependencies
         run: |
@@ -70,17 +83,22 @@ jobs:
           python -m pip install -r "${REQUIREMENTS_FILE}" pip-audit
 
       - name: Stage 5 - Lint Application
-        run: flake8 --jobs=1 app report.py
+        id: lint
+        run: >-
+          python -m flake8 --jobs=1 app report.py scripts/verify_localstack.py
+          scripts/build_pipeline_result.py scripts/discord_notify.py
 
       - name: Stage 6 - Run Test Suite With Coverage
-        run: pytest --cov=app --cov-report=term-missing --cov-report=xml app
+        id: tests
+        run: python -m pytest --cov=app --cov-report=term-missing --cov-report=xml app
 
       - name: Stage 7 - Audit Python Dependencies
         run: |
-          pip-audit -r "${REQUIREMENTS_FILE}" --format json --output pip-audit-report.json || true
+          python -m pip_audit -r "${REQUIREMENTS_FILE}" --format json --output pip-audit-report.json || true
           python - <<'PY'
           import json
           from pathlib import Path
+
           report = json.loads(Path("pip-audit-report.json").read_text())
           findings = [
               (dep["name"], dep["version"], vuln["id"])
@@ -101,6 +119,7 @@ jobs:
             --build-arg REQUIREMENTS_FILE="$(basename "${REQUIREMENTS_FILE}")" \
             -t "${APP_IMAGE_NAME}:${IMAGE_TAG}" \
             -t "${APP_IMAGE_NAME}:latest" \
+            -t "${APP_IMAGE_NAME}:sha-${SHORT_SHA}" \
             .
 
       - name: Stage 9 - Build Proxy Image
@@ -109,6 +128,7 @@ jobs:
             -f Dockerfile.proxy \
             -t "${PROXY_IMAGE_NAME}:${IMAGE_TAG}" \
             -t "${PROXY_IMAGE_NAME}:latest" \
+            -t "${PROXY_IMAGE_NAME}:sha-${SHORT_SHA}" \
             .
           docker image ls | grep sentinelci
 
@@ -134,27 +154,66 @@ jobs:
           ignore-unfixed: true
           exit-code: "0"
 
-      - name: Stage 12 - Display Trivy Findings
+      - name: Stage 12 - Trivy Scan App Image (SARIF)
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ${{ env.APP_IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: sarif
+          output: trivy-results.sarif
+          vuln-type: library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Stage 13 - Publish Findings To GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Stage 14 - Display Trivy Findings
         shell: bash
         run: |
           echo "===== Trivy Table Report ====="
           cat trivy-report.txt
 
-      - name: Stage 13 - Generate SentinelCI Security Report
+      - name: Stage 15 - Generate Human-Readable Report
         run: |
           python report.py \
             --input trivy-report.json \
             --output final-report.txt \
-            --label "${REPORT_LABEL}" \
-            --fail-on-vulns
+            --label "${REPORT_LABEL}"
 
-      - name: Stage 14 - Auto Deploy Demo Stack
-        if: ${{ success() && env.DEPENDENCY_PROFILE == 'safe' && env.AUTO_DEPLOY == 'true' }}
+      - name: Stage 16 - Build Trusted Pipeline Result
+        id: trusted-result
+        if: always()
+        shell: bash
+        run: |
+          export TEST_STATUS="${{ steps.tests.outcome || 'passed' }}"
+          export LINT_STATUS="${{ steps.lint.outcome || 'passed' }}"
+          python scripts/build_pipeline_result.py \
+            --trivy trivy-report.json \
+            --pip-audit pip-audit-report.json \
+            --coverage coverage.xml \
+            --output sentinelci-result.json \
+            --summary sentinelci-summary.md
+          cat sentinelci-summary.md >> "$GITHUB_STEP_SUMMARY"
+          STATUS="$(python -c "import json; print(json.load(open('sentinelci-result.json'))['security']['status'])")"
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+
+      - name: Stage 17 - Notify Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/discord_notify.py --result sentinelci-result.json
+
+      - name: Stage 18 - Auto Deploy Demo Stack
+        if: ${{ steps.trusted-result.outputs.status == 'passed' && env.DEPENDENCY_PROFILE == 'safe' && env.AUTO_DEPLOY == 'true' }}
         run: |
           docker compose -f docker-compose.demo.yml up -d
           docker compose -f docker-compose.demo.yml ps
+          python scripts/verify_localstack.py
 
-      - name: Stage 15 - Upload Demo Artifacts
+      - name: Stage 19 - Upload Pipeline Evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -166,3 +225,18 @@ jobs:
             trivy-report.json
             pip-audit-report.json
             coverage.xml
+            trivy-results.sarif
+            sentinelci-result.json
+            sentinelci-summary.md
+
+      - name: Stage 20 - Enforce Security Gate
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          result = json.load(open("sentinelci-result.json"))
+          if not result["security"]["gate"]["passed"]:
+              raise SystemExit("Security gate blocked the pipeline.")
+          print("Security gate passed.")
+          PY
