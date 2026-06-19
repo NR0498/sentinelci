@@ -84,7 +84,7 @@ def test_analyze_trivy_failure():
         "application/json",
     )
     assert analysis["status"] == "FAIL"
-    assert analysis["score"] == 85
+    assert analysis["score"] == 70
     assert analysis["vulnerabilities"]["critical"] == 1
     assert analysis["vulnerabilities"]["high"] == 1
 
@@ -97,7 +97,7 @@ def test_analyze_text_report():
         "text/plain",
     )
     assert analysis["status"] == "FAIL"
-    assert analysis["score"] == 72
+    assert analysis["score"] == 36
     assert analysis["vulnerabilities"] == {
         "critical": 1,
         "high": 3,

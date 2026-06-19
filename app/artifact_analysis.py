@@ -11,7 +11,7 @@ def _empty_counts() -> dict[str, int]:
 
 
 def _calculate_score(counts: dict[str, int]) -> int:
-    penalties = {"critical": 10, "high": 5, "medium": 2, "low": 1}
+    penalties = {"critical": 20, "high": 10, "medium": 3, "low": 1}
     return max(
         100 - sum(counts[name] * penalties[name] for name in SEVERITIES),
         0,
@@ -51,12 +51,8 @@ def _analyze_json(payload: Any) -> dict[str, Any] | None:
         for severity in SEVERITIES:
             value = summary.get(severity, 0)
             counts[severity] = int(value) if str(value).isdigit() else 0
-        score_value = payload.get("security_score")
-        score = int(score_value) if str(score_value).isdigit() else None
         return _result(
             counts,
-            score=score,
-            status=payload.get("status"),
             analyzer="sentinelci-json",
         )
 
@@ -92,21 +88,9 @@ def _analyze_text(text: str) -> dict[str, Any] | None:
     has_counts = any(
         re.search(severity, text, re.IGNORECASE) for severity in SEVERITIES
     )
-    score_match = re.search(
-        r"security\s+score\s*[:=]\s*(\d{1,3})(?:\s*/\s*100)?",
-        text,
-        re.IGNORECASE,
-    )
-    status_match = re.search(
-        r"(?:^|\n)\s*status\s*[:=]\s*(PASS|FAIL|REVIEW)\b",
-        text,
-        re.IGNORECASE,
-    )
-    if not has_counts and not score_match and not status_match:
+    if not has_counts:
         return None
-    score = min(int(score_match.group(1)), 100) if score_match else None
-    status = status_match.group(1) if status_match else None
-    return _result(counts, score=score, status=status, analyzer="text-report")
+    return _result(counts, analyzer="text-report")
 
 
 def analyze_artifact(

@@ -4,6 +4,23 @@
 
 SentinelCI is a demo-ready DevSecOps project that combines application delivery, security scanning, Docker packaging, Jenkins automation, Ansible deployment, and Terraform Infrastructure as Code in one repository. The project is prepared for both successful and failing screenshot flows.
 
+## Portfolio overview
+
+SentinelCI now uses an evidence-first architecture. GitHub Actions collects raw
+quality and security data, `scripts/build_pipeline_result.py` normalizes it,
+and the resulting contract drives the release gate, dashboard, GitHub summary,
+SARIF upload, retained artifacts, and optional Discord notification.
+
+Key project documents:
+
+- [Architecture and workflow diagrams](docs/ARCHITECTURE.md)
+- [Recruiter guide and engineering decisions](docs/RECRUITER_GUIDE.md)
+- [Discord notification setup](docs/DISCORD_SETUP.md)
+- [Working screenshots and proof](proof/README.md)
+
+The public dashboard is available at:
+https://dashboard-sooty-six-33.vercel.app
+
 It also includes a deployable dashboard and a real local AWS-compatible
 integration:
 
@@ -42,12 +59,15 @@ See [`proof/README.md`](proof/README.md) for captured evidence.
 The dashboard analyzes the newest uploaded text or JSON report. Use:
 
 - `proof/test-artifacts/sample-security-report.txt` for PASS and score 100
-- `proof/test-artifacts/sample-failing-report.txt` for FAIL, score 72, and a
+- `proof/test-artifacts/sample-failing-report.txt` for FAIL, calculated score
+  36, and a
   blocked security pipeline
 - `proof/test-artifacts/sample-scan-result.json` for a structured JSON PASS
 
 Trivy JSON reports are also supported. Images and unrecognized documents show
 `REVIEW` and `N/A` rather than being treated as a security pass.
+Claimed PASS/FAIL values and claimed scores inside uploaded reports are ignored;
+SentinelCI derives both from the vulnerability evidence.
 
 ## Vercel Dashboard
 

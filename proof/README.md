@@ -28,6 +28,10 @@ The end-to-end run produced:
 
 ## Screenshots
 
+![Recruiter-facing pipeline evidence dashboard](screenshots/sentinelci-recruiter-dashboard.png)
+
+![Recruiter dashboard deployed to Vercel](screenshots/sentinelci-vercel-recruiter-dashboard.png)
+
 ![SentinelCI dashboard](screenshots/sentinelci-dashboard.png)
 
 ![Dynamic PASS report](screenshots/sentinelci-dynamic-pass.png)

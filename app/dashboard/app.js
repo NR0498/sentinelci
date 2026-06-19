@@ -1,200 +1,234 @@
-const apiInput = document.querySelector("#api-base");
-const statusBadge = document.querySelector("#aws-badge");
-const statusState = document.querySelector("#aws-state");
-const statusDetail = document.querySelector("#aws-detail");
-const artifactList = document.querySelector("#artifact-list");
-const eventList = document.querySelector("#event-list");
-const uploadForm = document.querySelector("#upload-form");
-const uploadResult = document.querySelector("#upload-result");
-const deliveryCount = document.querySelector("#delivery-count");
-const updatedAt = document.querySelector("#updated-at");
-const securityBadge = document.querySelector("#security-badge");
-const securityScore = document.querySelector("#security-score");
-const scoreTotal = document.querySelector("#score-total");
-const scoreBar = document.querySelector("#score-bar");
-const pipelineBadge = document.querySelector("#pipeline-badge");
-const securityStage = document.querySelector("#security-stage");
+const REPOSITORY = "NR0498/sentinelci";
+const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+const dataBase = isLocal ? "/dashboard-assets/data" : "/data";
+const localApi = isLocal ? window.location.origin : "";
 
-const localDefault =
-  window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1"
-    ? window.location.origin
-    : "";
-apiInput.value = localStorage.getItem("sentinelci-api") || localDefault;
-
-function api(path) {
-  const base = apiInput.value.trim().replace(/\/$/, "");
-  if (!base) {
-    throw new Error("Set a reachable local API endpoint to load live data.");
-  }
-  localStorage.setItem("sentinelci-api", base);
-  return `${base}${path}`;
-}
-
-function formatBytes(bytes = 0) {
-  if (bytes < 1024) return `${bytes} B`;
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
+const $ = (selector) => document.querySelector(selector);
 
 function escapeHtml(value = "") {
   const node = document.createElement("span");
-  node.textContent = value;
+  node.textContent = String(value);
   return node.innerHTML;
 }
 
-function applyAnalysis(analysis) {
-  const result = analysis || {
-    status: "REVIEW",
-    score: null,
-    vulnerabilities: {},
-  };
-  const status = result.status || "REVIEW";
-  const score = result.score;
-  const counts = result.vulnerabilities || {};
+function badgeClass(status) {
+  if (["passed", "success", "completed"].includes(status)) return "badge good";
+  if (["failed", "failure", "cancelled"].includes(status)) return "badge bad";
+  return "badge neutral";
+}
 
-  securityBadge.textContent = status;
-  securityBadge.className =
-    status === "PASS"
-      ? "status good"
-      : status === "FAIL"
-        ? "status bad"
-        : "status idle";
-  securityScore.textContent =
-    score === null || score === undefined ? "N/A" : score;
-  scoreTotal.textContent =
-    score === null || score === undefined ? "" : "/100";
-  scoreBar.style.width = `${score || 0}%`;
-  scoreBar.style.background = status === "FAIL" ? "#ff8585" : "";
-
+function setEvidence(result) {
+  const security = result.security;
+  const counts = security.counts;
+  $("#security-score").textContent = security.score;
+  $("#security-badge").textContent = security.status;
+  $("#security-badge").className = badgeClass(security.status);
+  $("#score-bar").style.width = `${security.score}%`;
+  $("#score-bar").style.background =
+    security.status === "failed" ? "var(--red)" : "var(--green)";
+  $("#score-context").textContent =
+    `${security.total_findings} normalized finding${security.total_findings === 1 ? "" : "s"} from raw scanner output.`;
+  $("#coverage-value").textContent = `${result.quality.coverage_percent}%`;
+  $("#gate-status").textContent = security.gate.passed ? "Approved" : "Blocked";
+  $("#finding-total").textContent =
+    `${security.total_findings} finding${security.total_findings === 1 ? "" : "s"}`;
   ["critical", "high", "medium", "low"].forEach((severity) => {
-    document.querySelector(`#${severity}-count`).textContent =
-      counts[severity] || 0;
+    $(`#${severity}-count`).textContent = counts[severity];
   });
-
-  pipelineBadge.textContent =
-    status === "PASS" ? "Healthy" : status === "FAIL" ? "Blocked" : "Review";
-  pipelineBadge.className =
-    status === "PASS"
-      ? "status good"
-      : status === "FAIL"
-        ? "status bad"
-        : "status idle";
-  securityStage.className =
-    status === "PASS"
-      ? "stage complete"
-      : status === "FAIL"
-        ? "stage failed"
-        : "stage review";
+  $("#gate-indicator").className =
+    `gate-indicator ${security.gate.passed ? "pass" : "fail"}`;
+  $("#gate-title").textContent =
+    security.gate.passed ? "Release gate passed" : "Release gate blocked";
+  $("#gate-policy").textContent = security.gate.policy;
+  $("#discord-status").textContent =
+    result.delivery.discord_configured ? "Configured" : "Secret controlled";
+  renderFindings(security.findings);
 }
 
-async function loadStatus() {
+function renderFindings(findings) {
+  const container = $("#finding-list");
+  if (!findings.length) {
+    container.innerHTML =
+      '<div class="loading-block">No known vulnerabilities were reported for this run.</div>';
+    return;
+  }
+  container.innerHTML = findings
+    .map(
+      (item) => `
+      <article class="finding-card">
+        <div>
+          <span class="severity ${escapeHtml(item.severity)}">${escapeHtml(item.severity)}</span>
+          <small>${escapeHtml(item.source)}</small>
+        </div>
+        <div>
+          <strong>${escapeHtml(item.id)} in ${escapeHtml(item.package)}</strong>
+          <span>${escapeHtml(item.title)}</span>
+          <small>Installed ${escapeHtml(item.installed_version)} · Fixed ${escapeHtml(item.fixed_version)}</small>
+        </div>
+        <div class="finding-action">
+          <strong>Recommended action</strong>
+          <span>${escapeHtml(item.action)}</span>
+        </div>
+      </article>`,
+    )
+    .join("");
+}
+
+async function loadEvidence() {
+  const response = await fetch(`${dataBase}/latest.json`, { cache: "no-store" });
+  if (!response.ok) throw new Error("Pipeline evidence could not be loaded.");
+  const result = await response.json();
+  setEvidence(result);
+  return result;
+}
+
+function runStatus(run) {
+  return run.status === "completed" ? run.conclusion || "completed" : run.status;
+}
+
+async function loadGitHubRuns() {
+  const response = await fetch(
+    `https://api.github.com/repos/${REPOSITORY}/actions/runs?per_page=5`,
+    { headers: { Accept: "application/vnd.github+json" } },
+  );
+  if (!response.ok) throw new Error(`GitHub API returned ${response.status}.`);
+  const payload = await response.json();
+  const runs = payload.workflow_runs || [];
+  const latest = runs[0];
+  if (latest) {
+    const status = runStatus(latest);
+    $("#workflow-status").textContent = status.replace("_", " ");
+    $("#workflow-context").textContent =
+      `${latest.head_branch} · ${latest.head_sha.slice(0, 7)} · ${latest.actor.login}`;
+  }
+  $("#workflow-list").classList.remove("loading-block");
+  $("#workflow-list").innerHTML = runs.length
+    ? runs
+        .map((run) => {
+          const status = runStatus(run);
+          return `
+            <a class="workflow-row" href="${escapeHtml(run.html_url)}" target="_blank" rel="noreferrer">
+              <span class="run-state ${escapeHtml(status)}"></span>
+              <div>
+                <strong>${escapeHtml(run.name)} #${run.run_number}</strong>
+                <small>${escapeHtml(run.head_branch)} · ${escapeHtml(run.event)} · ${escapeHtml(run.actor.login)}</small>
+              </div>
+              <code>${escapeHtml(run.head_sha.slice(0, 7))}</code>
+              <span class="${badgeClass(status)}">${escapeHtml(status)}</span>
+            </a>`;
+        })
+        .join("")
+    : '<div class="loading-block">No workflow runs were returned.</div>';
+}
+
+function renderTrend(history) {
+  const width = 720;
+  const height = 210;
+  const pad = 34;
+  const x = (index) =>
+    pad + (index * (width - pad * 2)) / Math.max(history.length - 1, 1);
+  const y = (score) => height - pad - (score * (height - pad * 2)) / 100;
+  const points = history.map((item, index) => `${x(index)},${y(item.score)}`);
+  const area = `${pad},${height - pad} ${points.join(" ")} ${width - pad},${height - pad}`;
+  $("#trend-chart").innerHTML = `
+    <svg class="chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Security score by pipeline run">
+      <defs>
+        <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#55e6a5" stop-opacity=".23"/>
+          <stop offset="100%" stop-color="#55e6a5" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${[0,25,50,75,100].map((value) => `
+        <line class="chart-grid" x1="${pad}" y1="${y(value)}" x2="${width-pad}" y2="${y(value)}"/>
+        <text class="chart-label" x="0" y="${y(value)+3}">${value}</text>`).join("")}
+      <polygon class="chart-area" points="${area}"/>
+      <polyline class="chart-line" points="${points.join(" ")}"/>
+      ${history.map((item,index) => `
+        <circle class="chart-point" cx="${x(index)}" cy="${y(item.score)}" r="5"/>
+        <text class="chart-label" text-anchor="middle" x="${x(index)}" y="${height-8}">#${item.run}</text>
+        <text class="chart-label" text-anchor="middle" x="${x(index)}" y="${y(item.score)-12}">${item.score}</text>`).join("")}
+    </svg>`;
+}
+
+async function loadHistory() {
+  const response = await fetch(`${dataBase}/history.json`, { cache: "no-store" });
+  if (!response.ok) throw new Error("History data could not be loaded.");
+  renderTrend(await response.json());
+}
+
+async function loadLocalStatus() {
+  if (!localApi) {
+    $("#connection-label").textContent = "Hosted portfolio mode";
+    $("#connection-detail").textContent = "Live GitHub status and committed evidence";
+    return;
+  }
   try {
-    const response = await fetch(api("/api/aws/status"));
-    const data = await response.json();
-    if (!response.ok || !data.connected) {
-      throw new Error(data.error || data.detail || "LocalStack unavailable");
-    }
-    statusBadge.textContent = "Connected";
-    statusBadge.className = "status good";
-    statusState.textContent = "Online";
-    statusDetail.textContent = data.bucket;
-  } catch (error) {
-    statusBadge.textContent = "Offline";
-    statusBadge.className = "status idle";
-    statusState.textContent = "Demo";
-    statusDetail.textContent = error.message;
+    const response = await fetch(`${localApi}/api/aws/status`);
+    const status = await response.json();
+    $("#connection-label").textContent = status.connected
+      ? "LocalStack connected"
+      : "LocalStack unavailable";
+    $("#connection-detail").textContent = status.connected
+      ? status.bucket
+      : "Start the Docker Compose stack";
+  } catch {
+    $("#connection-label").textContent = "Local API unavailable";
+    $("#connection-detail").textContent = "Start Docker Compose to upload evidence";
   }
 }
 
-async function loadArtifacts() {
-  try {
-    const response = await fetch(api("/api/artifacts"));
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Artifact query failed");
-    applyAnalysis(data.artifacts.length ? data.artifacts[0].analysis : null);
-    artifactList.innerHTML = data.artifacts.length
-      ? data.artifacts
-          .map(
-            (item) => `
-              <div class="list-row">
-                <div>
-                  <strong title="${escapeHtml(item.key)}">${escapeHtml(item.key)}</strong>
-                  <small>${new Date(item.last_modified).toLocaleString()} · ${escapeHtml(item.analysis.status)}</small>
-                </div>
-                <code>${formatBytes(item.size)}</code>
-              </div>`,
-          )
-          .join("")
-      : '<div class="empty">The S3 bucket is ready for its first artifact.</div>';
-  } catch (error) {
-    artifactList.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
-  }
-}
-
-async function loadEvents() {
-  try {
-    const response = await fetch(api("/api/notifications"));
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Notification query failed");
-    deliveryCount.textContent = data.notifications.length;
-    eventList.innerHTML = data.notifications.length
-      ? data.notifications
-          .map(
-            (item) => `
-              <div class="list-row">
-                <div>
-                  <strong>${escapeHtml(item.subject || item.payload.event)}</strong>
-                  <small>${escapeHtml(item.payload.key || "SNS event")}</small>
-                </div>
-                <code>DELIVERED</code>
-              </div>`,
-          )
-          .join("")
-      : '<div class="empty">Upload an artifact to publish an SNS event.</div>';
-  } catch (error) {
-    eventList.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
-  }
-}
-
-async function refreshAll() {
-  await Promise.all([loadStatus(), loadArtifacts(), loadEvents()]);
-  updatedAt.textContent = `Updated ${new Date().toLocaleTimeString()}`;
-}
-
-uploadForm.addEventListener("submit", async (event) => {
+async function uploadEvidence(event) {
   event.preventDefault();
-  const input = document.querySelector("#artifact-file");
+  if (!localApi) {
+    $("#upload-result").className = "result error";
+    $("#upload-result").textContent =
+      "Hosted mode is read-only. Run the local Docker stack for S3 and SNS evidence uploads.";
+    return;
+  }
+  const input = $("#artifact-file");
   if (!input.files.length) return;
-  const formData = new FormData();
-  formData.append("file", input.files[0]);
-  uploadResult.className = "result";
-  uploadResult.textContent = "Uploading to S3 and publishing SNS notification…";
+  const form = new FormData();
+  form.append("file", input.files[0]);
+  $("#upload-result").className = "result";
+  $("#upload-result").textContent = "Analyzing report, storing in S3, and publishing SNS.";
   try {
-    const response = await fetch(api("/api/artifacts/upload"), {
+    const response = await fetch(`${localApi}/api/artifacts/upload`, {
       method: "POST",
-      body: formData,
+      body: form,
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Upload failed");
-    uploadResult.className = "result success";
-    uploadResult.textContent = `${data.analysis.status} · score ${data.analysis.score ?? "N/A"} · ${data.s3_uri}`;
-    applyAnalysis(data.analysis);
-    await refreshAll();
+    if (!response.ok) throw new Error(data.detail || "Upload failed.");
+    $("#upload-result").className = "result success";
+    $("#upload-result").textContent =
+      `${data.analysis.status} · ${data.analysis.score ?? "N/A"}/100 · ${data.s3_uri}`;
   } catch (error) {
-    uploadResult.className = "result error";
-    uploadResult.textContent = error.message;
+    $("#upload-result").className = "result error";
+    $("#upload-result").textContent = error.message;
   }
-});
+}
 
-document.querySelector("#refresh-button").addEventListener("click", refreshAll);
-document.querySelector("#artifact-refresh").addEventListener("click", loadArtifacts);
-document.querySelector("#event-refresh").addEventListener("click", loadEvents);
-document.querySelector("#artifact-file").addEventListener("change", (event) => {
+async function refresh() {
+  const results = await Promise.allSettled([
+    loadEvidence(),
+    loadGitHubRuns(),
+    loadHistory(),
+    loadLocalStatus(),
+  ]);
+  const failures = results.filter((result) => result.status === "rejected");
+  if (failures.length) {
+    console.warn("Some dashboard sources failed:", failures);
+  }
+  $("#updated-at").textContent = `Updated ${new Date().toLocaleString()}`;
+}
+
+$("#refresh-button").addEventListener("click", refresh);
+$("#upload-form").addEventListener("submit", uploadEvidence);
+$("#artifact-file").addEventListener("change", (event) => {
   const file = event.target.files[0];
   if (file) {
-    document.querySelector("#drop-zone strong").textContent = file.name;
-    document.querySelector("#drop-zone small").textContent = formatBytes(file.size);
+    $("#drop-zone strong").textContent = file.name;
+    $("#drop-zone small").textContent = `${Math.ceil(file.size / 1024)} KB selected`;
   }
 });
 
-refreshAll();
+refresh();

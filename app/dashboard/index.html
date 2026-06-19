@@ -5,176 +5,220 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="SentinelCI DevSecOps dashboard with LocalStack S3 and SNS proof."
+      content="SentinelCI DevSecOps evidence and pipeline observability dashboard."
     />
-    <title>SentinelCI Control Room</title>
+    <title>SentinelCI | DevSecOps Evidence Platform</title>
     <link rel="stylesheet" href="/dashboard-assets/styles.css" />
   </head>
   <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
     <div class="shell">
       <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark">S</div>
-          <div>
-            <strong>SentinelCI</strong>
-            <span>Control room</span>
-          </div>
-        </div>
-        <nav aria-label="Dashboard navigation">
-          <a class="active" href="#overview">Overview</a>
-          <a href="#pipeline">Pipeline</a>
-          <a href="#artifacts">Artifacts</a>
-          <a href="#events">Events</a>
+        <a class="brand" href="#overview">
+          <span class="brand-mark">S</span>
+          <span><strong>SentinelCI</strong><small>Evidence platform</small></span>
+        </a>
+        <nav aria-label="Dashboard sections">
+          <a class="active" href="#overview">Executive view</a>
+          <a href="#workflow">Workflow runs</a>
+          <a href="#findings">Security findings</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#evidence">Evidence upload</a>
         </nav>
-        <div class="sidebar-foot">
-          <span class="pulse"></span>
-          Local-first AWS proof
+        <div class="sidebar-card">
+          <span class="signal"></span>
+          <div>
+            <strong id="connection-label">Loading evidence</strong>
+            <small id="connection-detail">Checking data sources</small>
+          </div>
         </div>
       </aside>
 
       <main>
-        <header>
+        <header class="hero reveal">
           <div>
-            <p class="eyebrow">DevSecOps observability</p>
-            <h1>Deployment confidence, at a glance.</h1>
-            <p class="subtitle">
-              Live proof across tests, security gates, S3 artifacts, and SNS
-              delivery—without an AWS account.
+            <p class="eyebrow">DevSecOps evidence and observability</p>
+            <h1>Security decisions backed by pipeline evidence.</h1>
+            <p class="lede">
+              SentinelCI converts raw test, dependency, and container scan
+              output into an auditable release decision. It connects delivery
+              status, actionable vulnerabilities, artifacts, and team
+              notifications in one view.
             </p>
           </div>
-          <div class="header-actions">
-            <label class="api-field">
-              <span>API endpoint</span>
-              <input id="api-base" value="" placeholder="Same origin" />
-            </label>
-            <button id="refresh-button" class="secondary">Refresh</button>
+          <div class="hero-actions">
+            <a
+              class="button secondary"
+              href="https://github.com/NR0498/sentinelci/actions"
+              target="_blank"
+              rel="noreferrer"
+            >Open GitHub Actions</a>
+            <button id="refresh-button">Refresh data</button>
           </div>
         </header>
 
-        <section id="overview" class="status-strip">
-          <article>
-            <div class="metric-head">
-              <span>Security score</span><span id="security-badge" class="status idle">No report</span>
+        <section id="overview" class="metric-grid reveal">
+          <article class="metric-card score-card">
+            <div class="metric-label">
+              <span>Security score</span>
+              <span id="security-badge" class="badge neutral">Loading</span>
             </div>
-            <strong id="security-score">N/A</strong><small id="score-total"></small>
-            <div class="bar"><i id="score-bar" style="width: 0%"></i></div>
+            <div class="score-line">
+              <strong id="security-score">--</strong><small>/100</small>
+            </div>
+            <div class="progress"><i id="score-bar"></i></div>
+            <p id="score-context">Calculated from raw scanner findings.</p>
           </article>
-          <article>
-            <div class="metric-head">
-              <span>Test coverage</span><span class="trend">+ stable</span>
-            </div>
-            <strong>100%</strong>
-            <p>10 automated checks passing</p>
+          <article class="metric-card">
+            <div class="metric-label"><span>Latest workflow</span><span class="dot"></span></div>
+            <strong id="workflow-status">Loading</strong>
+            <p id="workflow-context">Retrieving the public GitHub run.</p>
           </article>
-          <article>
-            <div class="metric-head">
-              <span>LocalStack</span><span id="aws-badge" class="status idle">Checking</span>
-            </div>
-            <strong id="aws-state">—</strong>
-            <p id="aws-detail">Connecting to local AWS services</p>
+          <article class="metric-card">
+            <div class="metric-label"><span>Test coverage</span><span class="trend">Quality</span></div>
+            <strong id="coverage-value">--</strong>
+            <p>Measured from coverage.xml, not manually entered.</p>
           </article>
-          <article>
-            <div class="metric-head">
-              <span>Last delivery</span><span class="status info">SNS</span>
-            </div>
-            <strong id="delivery-count">0</strong>
-            <p>notifications observed</p>
+          <article class="metric-card">
+            <div class="metric-label"><span>Release gate</span><span class="trend">Policy</span></div>
+            <strong id="gate-status">Evaluating</strong>
+            <p>Blocks releases containing critical or high findings.</p>
           </article>
         </section>
 
-        <section class="grid">
-          <article id="pipeline" class="panel pipeline-panel">
+        <section class="content-grid">
+          <article id="workflow" class="panel span-two reveal">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Pipeline</p>
-                <h2>Release path</h2>
+                <p class="eyebrow">Continuous integration</p>
+                <h2>Recent GitHub Actions runs</h2>
               </div>
-              <span id="pipeline-badge" class="status idle">Waiting</span>
+              <span class="data-label">Live public GitHub API</span>
             </div>
-            <div class="pipeline">
-              <div class="stage complete">
-                <span>01</span><div><strong>Source</strong><small>Git checkout</small></div>
-              </div>
-              <div class="stage complete">
-                <span>02</span><div><strong>Quality</strong><small>Lint + pytest</small></div>
-              </div>
-              <div id="security-stage" class="stage">
-                <span>03</span><div><strong>Security</strong><small>Audit + Trivy</small></div>
-              </div>
-              <div class="stage complete">
-                <span>04</span><div><strong>Package</strong><small>Docker images</small></div>
-              </div>
-              <div class="stage active">
-                <span>05</span><div><strong>Evidence</strong><small>S3 + SNS</small></div>
-              </div>
+            <div id="workflow-list" class="workflow-list loading-block">
+              Loading workflow runs
             </div>
-            <div class="scan-summary">
+          </article>
+
+          <article class="panel reveal">
+            <div class="panel-head">
               <div>
-                <span>Critical</span><strong id="critical-count">0</strong>
+                <p class="eyebrow">Security posture</p>
+                <h2>Finding distribution</h2>
               </div>
+              <span id="finding-total" class="data-label">0 findings</span>
+            </div>
+            <div class="severity-grid">
+              <div><span>Critical</span><strong id="critical-count">0</strong></div>
+              <div><span>High</span><strong id="high-count">0</strong></div>
+              <div><span>Medium</span><strong id="medium-count">0</strong></div>
+              <div><span>Low</span><strong id="low-count">0</strong></div>
+            </div>
+            <div class="gate-box">
+              <span id="gate-indicator" class="gate-indicator"></span>
               <div>
-                <span>High</span><strong id="high-count">0</strong>
-              </div>
-              <div>
-                <span>Medium</span><strong id="medium-count">0</strong>
-              </div>
-              <div>
-                <span>Low</span><strong id="low-count">0</strong>
+                <strong id="gate-title">Security gate</strong>
+                <p id="gate-policy">Loading policy</p>
               </div>
             </div>
           </article>
 
-          <article id="artifacts" class="panel upload-panel">
+          <article class="panel span-two reveal">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">AWS integration</p>
-                <h2>Publish evidence</h2>
+                <p class="eyebrow">Engineering trend</p>
+                <h2>Score and coverage history</h2>
               </div>
-              <span class="aws-chip">S3 → SNS</span>
+              <span class="data-label">Representative run history</span>
+            </div>
+            <div id="trend-chart" class="trend-chart" aria-label="Security score history chart"></div>
+          </article>
+
+          <article id="findings" class="panel full reveal">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Actionable intelligence</p>
+                <h2>Vulnerability detail and remediation</h2>
+              </div>
+              <span class="data-label">Normalized scanner evidence</span>
+            </div>
+            <div id="finding-list" class="finding-list loading-block">
+              Loading security findings
+            </div>
+          </article>
+
+          <article id="architecture" class="panel full reveal">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">System design</p>
+                <h2>Evidence flow architecture</h2>
+              </div>
+              <span class="data-label">Automated control path</span>
+            </div>
+            <div class="architecture">
+              <div class="arch-node"><small>01</small><strong>Git push</strong><span>Source change</span></div>
+              <i></i>
+              <div class="arch-node"><small>02</small><strong>Quality</strong><span>Lint, tests, coverage</span></div>
+              <i></i>
+              <div class="arch-node"><small>03</small><strong>Security</strong><span>pip-audit and Trivy</span></div>
+              <i></i>
+              <div class="arch-node"><small>04</small><strong>Normalize</strong><span>Trusted result JSON</span></div>
+              <i></i>
+              <div class="arch-node"><small>05</small><strong>Decide</strong><span>Release gate</span></div>
+            </div>
+            <div class="architecture-branches">
+              <div><strong>GitHub</strong><span>Job summary, artifact, SARIF security findings</span></div>
+              <div><strong>Dashboard</strong><span>Runs, trends, findings, remediation guidance</span></div>
+              <div><strong>Discord</strong><span>Optional outcome notification via repository secret</span></div>
+              <div><strong>LocalStack</strong><span>S3 artifact storage and SNS/SQS delivery proof</span></div>
+            </div>
+          </article>
+
+          <article id="evidence" class="panel upload-panel reveal">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Local evidence path</p>
+                <h2>Inspect an additional report</h2>
+              </div>
+              <span class="data-label">LocalStack S3 and SNS</span>
             </div>
             <form id="upload-form">
               <label id="drop-zone" class="drop-zone">
                 <input id="artifact-file" type="file" required />
-                <span class="upload-icon">↑</span>
-                <strong>Choose a proof artifact</strong>
-                <small>Report, screenshot, JSON, or text file</small>
+                <strong>Select raw JSON or a text report</strong>
+                <small>The local API analyzes it before storage and notification.</small>
               </label>
-              <button id="upload-button" type="submit">Upload and notify</button>
+              <button id="upload-button" type="submit">Analyze and store evidence</button>
             </form>
             <div id="upload-result" class="result" aria-live="polite">
-              Ready for a live LocalStack upload.
+              Local upload is available when the Docker stack is running.
             </div>
           </article>
 
-          <article class="panel artifacts-panel">
+          <article class="panel reveal">
             <div class="panel-head">
               <div>
-                <p class="eyebrow">Object storage</p>
-                <h2>Recent artifacts</h2>
+                <p class="eyebrow">Team communication</p>
+                <h2>Discord delivery contract</h2>
               </div>
-              <button id="artifact-refresh" class="text-button">Reload</button>
+              <span class="data-label">Optional integration</span>
             </div>
-            <div id="artifact-list" class="list">
-              <div class="empty">No local artifacts loaded yet.</div>
-            </div>
-          </article>
-
-          <article id="events" class="panel events-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Event delivery</p>
-                <h2>SNS notifications</h2>
-              </div>
-              <button id="event-refresh" class="text-button">Poll queue</button>
-            </div>
-            <div id="event-list" class="list">
-              <div class="empty">No notification events loaded yet.</div>
+            <div class="notification-preview">
+              <span id="discord-status" class="badge neutral">Secret controlled</span>
+              <h3>Pipeline result notification</h3>
+              <p>
+                Sends branch, commit, actor, score, coverage, severity totals,
+                top findings, remediation versions, and a direct run link.
+              </p>
+              <code>Repository secret: DISCORD_WEBHOOK_URL</code>
             </div>
           </article>
         </section>
+
         <footer>
-          <span>SentinelCI · evidence-driven delivery</span>
-          <span id="updated-at">Not refreshed</span>
+          <span>SentinelCI. Evidence-based DevSecOps engineering.</span>
+          <span id="updated-at">Data not loaded</span>
         </footer>
       </main>
     </div>
