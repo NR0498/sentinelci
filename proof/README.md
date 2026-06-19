@@ -32,6 +32,8 @@ The end-to-end run produced:
 
 ![Recruiter dashboard deployed to Vercel](screenshots/sentinelci-vercel-recruiter-dashboard.png)
 
+![GitHub Actions trusted evidence run](screenshots/sentinelci-github-actions-evidence.png)
+
 ![SentinelCI dashboard](screenshots/sentinelci-dashboard.png)
 
 ![Dynamic PASS report](screenshots/sentinelci-dynamic-pass.png)

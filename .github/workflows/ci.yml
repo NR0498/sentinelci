@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Stage 1 - Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Stage 2 - Select Demo Profile And Tags
         shell: bash
@@ -73,7 +73,7 @@ jobs:
           echo "Image tags: ${IMAGE_TAG_INPUT}, latest, sha-${SHORT_SHA}"
 
       - name: Stage 3 - Set Up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
@@ -170,7 +170,7 @@ jobs:
           exit-code: "0"
 
       - name: Stage 13 - Publish Findings To GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
 
