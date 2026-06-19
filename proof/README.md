@@ -34,6 +34,8 @@ The end-to-end run produced:
 
 ![SentinelCI Vercel production deployment](screenshots/sentinelci-vercel-production.png)
 
+![SentinelCI proof published on GitHub](screenshots/sentinelci-github-proof.png)
+
 Production dashboard:
 https://dashboard-sooty-six-33.vercel.app
 
