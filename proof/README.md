@@ -34,6 +34,8 @@ The end-to-end run produced:
 
 ![GitHub Actions trusted evidence run](screenshots/sentinelci-github-actions-evidence.png)
 
+![Draft pull request and review surface](screenshots/sentinelci-pull-request.png)
+
 ![SentinelCI dashboard](screenshots/sentinelci-dashboard.png)
 
 ![Dynamic PASS report](screenshots/sentinelci-dynamic-pass.png)
