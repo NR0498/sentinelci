@@ -84,6 +84,7 @@ button.secondary { color: var(--text); background: #182027; border: 1px solid va
 .bar i { display: block; height: 100%; background: var(--green); }
 .status { display: inline-flex; align-items: center; padding: 4px 7px; border-radius: 99px; font-size: 9px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .status.good { color: var(--green); background: rgba(80,240,164,.1); }
+.status.bad { color: #ff8585; background: rgba(255,133,133,.1); }
 .status.idle { color: var(--amber); background: rgba(244,184,96,.1); }
 .status.info { color: var(--blue); background: rgba(122,184,255,.1); }
 .trend { color: var(--green); font-size: 10px; }
@@ -101,6 +102,8 @@ button.secondary { color: var(--text); background: #182027; border: 1px solid va
 }
 .stage.complete > span { color: #06130d; border-color: var(--green); background: var(--green); }
 .stage.active > span { color: var(--green); border-color: var(--green); box-shadow: 0 0 0 5px rgba(80,240,164,.07); }
+.stage.failed > span { color: #190505; border-color: #ff8585; background: #ff8585; }
+.stage.review > span { color: var(--amber); border-color: var(--amber); }
 .stage div { margin-top: 12px; padding-right: 10px; }
 .stage strong, .stage small { display: block; }
 .stage strong { color: var(--text); font-size: 12px; }

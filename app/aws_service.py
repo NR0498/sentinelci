@@ -1,5 +1,6 @@
 import json
 import os
+from io import BytesIO
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import BinaryIO
@@ -8,6 +9,8 @@ from uuid import uuid4
 import boto3
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+
+from app.artifact_analysis import analyze_artifact
 
 
 class AwsServiceError(RuntimeError):
@@ -75,15 +78,36 @@ class AwsArtifactService:
         safe_name = Path(filename or "artifact.bin").name
         object_key = f"uploads/{uuid4().hex[:12]}-{safe_name}"
         uploaded_at = datetime.now(timezone.utc).isoformat()
+        content = file_object.read()
+        analysis = analyze_artifact(
+            content,
+            safe_name,
+            content_type or "application/octet-stream",
+        )
+        counts = analysis["vulnerabilities"]
+        metadata = {
+            "uploaded-at": uploaded_at,
+            "analysis-status": analysis["status"],
+            "analysis-score": (
+                str(analysis["score"])
+                if analysis["score"] is not None
+                else "na"
+            ),
+            "analysis-analyzer": analysis["analyzer"],
+            **{
+                f"analysis-{severity}": str(count)
+                for severity, count in counts.items()
+            },
+        }
 
         try:
             self._client("s3").upload_fileobj(
-                file_object,
+                BytesIO(content),
                 self.bucket,
                 object_key,
                 ExtraArgs={
                     "ContentType": content_type or "application/octet-stream",
-                    "Metadata": {"uploaded-at": uploaded_at},
+                    "Metadata": metadata,
                 },
             )
             message = {
@@ -93,6 +117,7 @@ class AwsArtifactService:
                 "filename": safe_name,
                 "content_type": content_type or "application/octet-stream",
                 "uploaded_at": uploaded_at,
+                "analysis": analysis,
             }
             publish = self._client("sns").publish(
                 TopicArn=self.topic_arn,
@@ -120,15 +145,50 @@ class AwsArtifactService:
 
         objects = response.get("Contents", [])
         objects.sort(key=lambda item: item["LastModified"], reverse=True)
-        return [
-            {
-                "key": item["Key"],
-                "size": item["Size"],
-                "last_modified": item["LastModified"].isoformat(),
-                "s3_uri": f"s3://{self.bucket}/{item['Key']}",
-            }
-            for item in objects
-        ]
+        artifacts = []
+        s3_client = self._client("s3")
+        for item in objects:
+            head = s3_client.head_object(Bucket=self.bucket, Key=item["Key"])
+            metadata = head.get("Metadata", {})
+            score_value = metadata.get("analysis-score", "na")
+            artifacts.append(
+                {
+                    "key": item["Key"],
+                    "size": item["Size"],
+                    "last_modified": item["LastModified"].isoformat(),
+                    "s3_uri": f"s3://{self.bucket}/{item['Key']}",
+                    "analysis": {
+                        "status": metadata.get(
+                            "analysis-status",
+                            "REVIEW",
+                        ),
+                        "score": (
+                            int(score_value)
+                            if score_value.isdigit()
+                            else None
+                        ),
+                        "analyzer": metadata.get(
+                            "analysis-analyzer",
+                            "legacy-artifact",
+                        ),
+                        "vulnerabilities": {
+                            severity: int(
+                                metadata.get(
+                                    f"analysis-{severity}",
+                                    "0",
+                                )
+                            )
+                            for severity in (
+                                "critical",
+                                "high",
+                                "medium",
+                                "low",
+                            )
+                        },
+                    },
+                }
+            )
+        return artifacts
 
     def receive_notifications(self, limit: int = 10) -> list[dict]:
         try:

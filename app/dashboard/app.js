@@ -8,6 +8,12 @@ const uploadForm = document.querySelector("#upload-form");
 const uploadResult = document.querySelector("#upload-result");
 const deliveryCount = document.querySelector("#delivery-count");
 const updatedAt = document.querySelector("#updated-at");
+const securityBadge = document.querySelector("#security-badge");
+const securityScore = document.querySelector("#security-score");
+const scoreTotal = document.querySelector("#score-total");
+const scoreBar = document.querySelector("#score-bar");
+const pipelineBadge = document.querySelector("#pipeline-badge");
+const securityStage = document.querySelector("#security-stage");
 
 const localDefault =
   window.location.hostname === "localhost" ||
@@ -36,6 +42,51 @@ function escapeHtml(value = "") {
   return node.innerHTML;
 }
 
+function applyAnalysis(analysis) {
+  const result = analysis || {
+    status: "REVIEW",
+    score: null,
+    vulnerabilities: {},
+  };
+  const status = result.status || "REVIEW";
+  const score = result.score;
+  const counts = result.vulnerabilities || {};
+
+  securityBadge.textContent = status;
+  securityBadge.className =
+    status === "PASS"
+      ? "status good"
+      : status === "FAIL"
+        ? "status bad"
+        : "status idle";
+  securityScore.textContent =
+    score === null || score === undefined ? "N/A" : score;
+  scoreTotal.textContent =
+    score === null || score === undefined ? "" : "/100";
+  scoreBar.style.width = `${score || 0}%`;
+  scoreBar.style.background = status === "FAIL" ? "#ff8585" : "";
+
+  ["critical", "high", "medium", "low"].forEach((severity) => {
+    document.querySelector(`#${severity}-count`).textContent =
+      counts[severity] || 0;
+  });
+
+  pipelineBadge.textContent =
+    status === "PASS" ? "Healthy" : status === "FAIL" ? "Blocked" : "Review";
+  pipelineBadge.className =
+    status === "PASS"
+      ? "status good"
+      : status === "FAIL"
+        ? "status bad"
+        : "status idle";
+  securityStage.className =
+    status === "PASS"
+      ? "stage complete"
+      : status === "FAIL"
+        ? "stage failed"
+        : "stage review";
+}
+
 async function loadStatus() {
   try {
     const response = await fetch(api("/api/aws/status"));
@@ -60,6 +111,7 @@ async function loadArtifacts() {
     const response = await fetch(api("/api/artifacts"));
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "Artifact query failed");
+    applyAnalysis(data.artifacts.length ? data.artifacts[0].analysis : null);
     artifactList.innerHTML = data.artifacts.length
       ? data.artifacts
           .map(
@@ -67,7 +119,7 @@ async function loadArtifacts() {
               <div class="list-row">
                 <div>
                   <strong title="${escapeHtml(item.key)}">${escapeHtml(item.key)}</strong>
-                  <small>${new Date(item.last_modified).toLocaleString()}</small>
+                  <small>${new Date(item.last_modified).toLocaleString()} · ${escapeHtml(item.analysis.status)}</small>
                 </div>
                 <code>${formatBytes(item.size)}</code>
               </div>`,
@@ -125,7 +177,8 @@ uploadForm.addEventListener("submit", async (event) => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "Upload failed");
     uploadResult.className = "result success";
-    uploadResult.textContent = `${data.s3_uri} · SNS ${data.message_id}`;
+    uploadResult.textContent = `${data.analysis.status} · score ${data.analysis.score ?? "N/A"} · ${data.s3_uri}`;
+    applyAnalysis(data.analysis);
     await refreshAll();
   } catch (error) {
     uploadResult.className = "result error";

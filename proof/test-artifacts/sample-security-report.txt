@@ -1,0 +1,17 @@
+SENTINELCI TEST ARTIFACT
+========================
+
+Purpose: Test the dashboard's Upload and Notify button.
+Status: PASS
+Security score: 100/100
+
+Checks:
+- Application health: Healthy
+- Automated tests: Passed
+- Critical vulnerabilities: 0
+- High vulnerabilities: 0
+- Deployment approval: Granted
+
+Expected result:
+1. This file appears in Recent artifacts.
+2. An SNS notification appears with DELIVERED status.

@@ -30,6 +30,10 @@ The end-to-end run produced:
 
 ![SentinelCI dashboard](screenshots/sentinelci-dashboard.png)
 
+![Dynamic PASS report](screenshots/sentinelci-dynamic-pass.png)
+
+![Dynamic FAIL report](screenshots/sentinelci-dynamic-fail.png)
+
 ![SentinelCI API documentation](screenshots/sentinelci-api-docs.png)
 
 ![SentinelCI Vercel production deployment](screenshots/sentinelci-vercel-production.png)

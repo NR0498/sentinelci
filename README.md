@@ -37,6 +37,18 @@ The proof performs a real upload, checks that the object is returned by S3,
 and confirms that the matching SNS message reached the SQS verification queue.
 See [`proof/README.md`](proof/README.md) for captured evidence.
 
+### Testing dynamic scores
+
+The dashboard analyzes the newest uploaded text or JSON report. Use:
+
+- `proof/test-artifacts/sample-security-report.txt` for PASS and score 100
+- `proof/test-artifacts/sample-failing-report.txt` for FAIL, score 72, and a
+  blocked security pipeline
+- `proof/test-artifacts/sample-scan-result.json` for a structured JSON PASS
+
+Trivy JSON reports are also supported. Images and unrecognized documents show
+`REVIEW` and `N/A` rather than being treated as a security pass.
+
 ## Vercel Dashboard
 
 The dashboard is dependency-free static HTML, CSS, and JavaScript in

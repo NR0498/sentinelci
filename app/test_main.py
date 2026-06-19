@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.artifact_analysis import analyze_artifact
 from app.main import app, aws_service
 
 client = TestClient(app)
@@ -73,3 +74,43 @@ def test_list_notifications(monkeypatch):
     assert response.json()["notifications"][0]["payload"]["event"] == (
         "artifact.uploaded"
     )
+
+
+def test_analyze_trivy_failure():
+    analysis = analyze_artifact(
+        b'{"Results":[{"Vulnerabilities":['
+        b'{"Severity":"CRITICAL"},{"Severity":"HIGH"}]}]}',
+        "trivy.json",
+        "application/json",
+    )
+    assert analysis["status"] == "FAIL"
+    assert analysis["score"] == 85
+    assert analysis["vulnerabilities"]["critical"] == 1
+    assert analysis["vulnerabilities"]["high"] == 1
+
+
+def test_analyze_text_report():
+    analysis = analyze_artifact(
+        b"Status: FAIL\nSecurity score: 72/100\n"
+        b"Critical: 1\nHigh: 3\nMedium: 4\nLow: 2\n",
+        "report.txt",
+        "text/plain",
+    )
+    assert analysis["status"] == "FAIL"
+    assert analysis["score"] == 72
+    assert analysis["vulnerabilities"] == {
+        "critical": 1,
+        "high": 3,
+        "medium": 4,
+        "low": 2,
+    }
+
+
+def test_unrecognized_file_requires_review():
+    analysis = analyze_artifact(
+        b"\x89PNG",
+        "screenshot.png",
+        "image/png",
+    )
+    assert analysis["status"] == "REVIEW"
+    assert analysis["score"] is None

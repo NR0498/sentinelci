@@ -54,17 +54,17 @@
         <section id="overview" class="status-strip">
           <article>
             <div class="metric-head">
-              <span>Security score</span><span class="status good">PASS</span>
+              <span>Security score</span><span id="security-badge" class="status idle">No report</span>
             </div>
-            <strong>100</strong><small>/100</small>
-            <div class="bar"><i style="width: 100%"></i></div>
+            <strong id="security-score">N/A</strong><small id="score-total"></small>
+            <div class="bar"><i id="score-bar" style="width: 0%"></i></div>
           </article>
           <article>
             <div class="metric-head">
               <span>Test coverage</span><span class="trend">+ stable</span>
             </div>
             <strong>100%</strong>
-            <p>7 API checks passing</p>
+            <p>10 automated checks passing</p>
           </article>
           <article>
             <div class="metric-head">
@@ -89,7 +89,7 @@
                 <p class="eyebrow">Pipeline</p>
                 <h2>Release path</h2>
               </div>
-              <span class="status good">Healthy</span>
+              <span id="pipeline-badge" class="status idle">Waiting</span>
             </div>
             <div class="pipeline">
               <div class="stage complete">
@@ -98,7 +98,7 @@
               <div class="stage complete">
                 <span>02</span><div><strong>Quality</strong><small>Lint + pytest</small></div>
               </div>
-              <div class="stage complete">
+              <div id="security-stage" class="stage">
                 <span>03</span><div><strong>Security</strong><small>Audit + Trivy</small></div>
               </div>
               <div class="stage complete">
@@ -110,16 +110,16 @@
             </div>
             <div class="scan-summary">
               <div>
-                <span>Critical</span><strong>0</strong>
+                <span>Critical</span><strong id="critical-count">0</strong>
               </div>
               <div>
-                <span>High</span><strong>0</strong>
+                <span>High</span><strong id="high-count">0</strong>
               </div>
               <div>
-                <span>Medium</span><strong>0</strong>
+                <span>Medium</span><strong id="medium-count">0</strong>
               </div>
               <div>
-                <span>Low</span><strong>0</strong>
+                <span>Low</span><strong id="low-count">0</strong>
               </div>
             </div>
           </article>
